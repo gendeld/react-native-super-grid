@@ -1,109 +1,95 @@
-import React, { Component, PropTypes } from 'react';
-import { View, ListView, Dimensions } from 'react-native';
-import { chunkArray } from './utils';
+'use strict';
 
-class SuperGrid extends Component {
-  constructor(props) {
-    super(props);
-    this.renderRow = this.renderRow.bind(this);
-    this.onLayout = this.onLayout.bind(this);
-    this.getDimensions = this.getDimensions.bind(this);
-    this.state = this.getDimensions();
-  }
+import React from 'react';
 
-  onLayout(e) {
-    const { width } = e.nativeEvent.layout || {};
-    this.setState({
-      ...this.getDimensions(width),
-    });
-  }
+import {
+  AppRegistry,
+  View,
+  StyleSheet,
+  ListView,
+  Image,
+  Text
+} from 'react-native';
 
-  getDimensions(lvWidth) {
-    const { itemWidth, spacing, fixed } = this.props;
-    const totalWidth = lvWidth || Dimensions.get('window').width;
+import {
+    LazyloadListView
+} from 'react-native-lazyload';
 
-    const itemTotalWidth = itemWidth + spacing;
-    const availableWidth = totalWidth - spacing; // One spacing extra
-    const itemsPerRow = Math.floor(availableWidth / itemTotalWidth);
-    const containerWidth = availableWidth / itemsPerRow;
+import { Metrics, Images } from '../../App/Themes';
 
-    return {
-      itemWidth,
-      spacing,
-      itemsPerRow,
-      containerWidth,
-      fixed,
-    };
-  }
-
-  renderRow(data, sectionId, rowId) {
-    const { itemWidth, spacing, containerWidth, fixed } = this.state;
-
-    const rowStyle = {
-      flexDirection: 'row',
-      paddingLeft: spacing,
-      paddingBottom: spacing,
-    };
-    const columnStyle = {
-      flexDirection: 'column',
-      justifyContent: 'center',
-      width: containerWidth,
-      paddingRight: spacing,
-    };
-    let itemStyle = {};
-    if (fixed) {
-      itemStyle = {
-        width: itemWidth,
-        alignSelf: 'center',
-      };
-    }
-
-    return (
-      <View style={rowStyle}>
-        {(data || []).map((item, i) => (
-          <View key={`${rowId}_${i}`} style={columnStyle}>
-            <View style={itemStyle}>
-              {this.props.renderItem(item, i)}
-            </View>
+var CollectionView = React.createClass({
+    groupItems: function(items, itemsPerRow) {
+        var itemsGroups = [];
+        var group = [];
+        var flag=false;
+        items.forEach(function(item) {
+          if(flag)
+          {
+            if (group.length === itemsPerRow) {
+              itemsGroups.push(group);
+              group = [item];
+            } else {
+              group.push(item);
+            }
+          }
+          else {
+            flag=true;
+          }
+        });
+        if (group.length > 0) {
+          itemsGroups.push(group);
+        }
+        itemsGroups.unshift([items[0]]);
+        return itemsGroups;
+    },
+    renderGroup: function(group) {
+      var that = this;
+      if(group.length==1&&this.state.flag)
+      {
+        this.state.flag=false;
+        var items = group.map(function(item, index) {
+          return that.props.renderHeader(item, that.props.openModal, that.props.mCon);
+        });
+        return (
+          <View>
+            {items}
           </View>
-        ))}
-      </View>
-    );
+        );
+      }
+      else {
+        var items = group.map(function(item, index) {
+          return that.props.renderItem(item, that.props.openModal, index, that.props.mCon);
+        });
+        return (
+          <View style={styles.group}>
+            {items}
+          </View>
+        );
+      }
+    },
+    render: function() {
+        this.state={flag: true};
+        var groups = this.groupItems(this.props.items, this.props.itemsPerRow);
+        var ds = new ListView.DataSource({rowHasChanged: (r1, r2) => r1 !== r2});
+        return (<LazyloadListView
+          name="lazyload-list"
+          {...this.props}
+          renderRow={this.renderGroup}
+          dataSource={ds.cloneWithRows(groups)}
+        />);
+    },
+});
+
+
+var styles = StyleSheet.create({
+  group: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    paddingHorizontal: 25,
+    paddingBottom: 8
   }
+});
 
-  render() {
-    const { items, style, renderItem, spacing, fixed, itemWidth, ...props } = this.props;
-    const { itemsPerRow } = this.state;
-
-    const rows = chunkArray(items, itemsPerRow);
-    const ds = new ListView.DataSource({ rowHasChanged: (r1, r2) => r1 !== r2 });
-
-    return (
-      <ListView
-        style={[{ paddingTop: spacing }, style]}
-        onLayout={this.onLayout}
-        dataSource={ds.cloneWithRows(rows)}
-        renderRow={this.renderRow}
-        {...props}
-      />
-    );
-  }
-}
-
-SuperGrid.propTypes = {
-  renderItem: PropTypes.func.isRequired,
-  items: PropTypes.arrayOf(PropTypes.any).isRequired,
-  itemWidth: PropTypes.number,
-  fixed: PropTypes.bool,
-  spacing: PropTypes.number,
-  style: View.propTypes.style,
-};
-
-SuperGrid.defaultProps = {
-  fixed: false,
-  itemWidth: 120,
-  spacing: 10,
-  style: {},
-};
-
-export default SuperGrid;
+module.exports = CollectionView;
